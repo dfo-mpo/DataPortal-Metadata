@@ -41,7 +41,7 @@ FIELD_MAPPING = {
       ("gco:CharacterString")
     ]
   },
-  "dateStamp": {
+  "date_stamp": {
     "text": datetime.now().isoformat(),
     "path": [
       ("gmd:dateStamp"),
@@ -55,7 +55,7 @@ FIELD_MAPPING = {
       ("gco:CharacterString")
     ]
   },
-  "characterSet": {
+  "character_set": {
     "source": "edhProfile.characterSet",
     "path": [
       ("gmd:characterSet"),
@@ -67,7 +67,7 @@ FIELD_MAPPING = {
       )
     ]
   },
-  "hierarchyLevel": {
+  "hierarchy_level": {
     "source": "edhProfile.hierarchyLevel",
     "path": [
       ("gmd:hierarchyLevel"),
@@ -79,7 +79,9 @@ FIELD_MAPPING = {
       )
     ]
   },
-  "individualName": {
+
+  # 
+  "individual_name": {
     "source": "individualName",
     "path": [
       ("gmd:contact"),
@@ -87,7 +89,7 @@ FIELD_MAPPING = {
       ("gmd:individualName"),
     ]
   },
-  "organizationName": {
+  "organization_name": {
     "source": "organizationName",
     "source_fr": "organizationName",
     "path": [
@@ -96,7 +98,7 @@ FIELD_MAPPING = {
       ("gmd:organisationName", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
     ]
   },
-  "emailAddress": {
+  "email_address": {
     "source": "emailAddress",
     "source_fr": "emailAddress",
     "path": [
@@ -122,6 +124,8 @@ FIELD_MAPPING = {
       ),
     ]
   },
+
+  # 
   "title": {
     "source": "title",
     "source_fr": "titleFr",
@@ -133,9 +137,8 @@ FIELD_MAPPING = {
       ("gmd:title", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
     ]
   },
-  "publication": {
-    # "source": "edhProfile.dataPublication",
-    "text": datetime.now().isoformat(),
+  "datePublication": {
+    "text": datetime.now().date(),
     "path": [
       ("gmd:identificationInfo"),
       ("gmd:MD_DataIdentification"),
@@ -145,6 +148,24 @@ FIELD_MAPPING = {
       ("gmd:CI_Date"),
       ("gmd:date"),
       ("gco:Date")
+    ]
+  },
+  "datePublicationTypeCode": {
+    "source": "edhProfile.dataPublication",
+    "path": [
+      ("gmd:identificationInfo"),
+      ("gmd:MD_DataIdentification"),
+      ("gmd:citation"),
+      ("gmd:CI_Citation"),
+      ("gmd:date"),
+      ("gmd:CI_Date"),
+      ("gmd:dateType"),
+      ("gmd:CI_DateTypeCode",
+        { 
+         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_87",
+         "codeListValue": "RI_367"
+        }
+      )
     ]
   },
   "abstract": {
@@ -170,7 +191,7 @@ FIELD_MAPPING = {
       ),
     ]
   },
-  "identificationInfo_language": {
+  "data_identification_language": {
     "source": "edhProfile.language",
     "path": [
       ("gmd:identificationInfo"),
@@ -179,7 +200,7 @@ FIELD_MAPPING = {
       ("gco:CharacterString")
     ]
   },
-  "topicCategory": {
+  "topic_category": {
     "source": "edhProfile.topicCategory",
     "repeat": "gmd:topicCategory",
     "path": [
@@ -189,8 +210,9 @@ FIELD_MAPPING = {
       ("gmd:MD_TopicCategoryCode")
     ]
   },
-  "updateFrequency": {
+  "update_frequency": {
     "source": "updateFrequency",
+    "source_fr": "updateFrequencyFr",
     "path": [
       ("gmd:resourceMaintenance"),
       ("gmd:MD_MaintenanceInformation"),
@@ -203,7 +225,9 @@ FIELD_MAPPING = {
       ),
     ]
   },
-  "citedResponsiblePartyIndividualName": {
+
+  # 
+  "ci_individual_name": {
     "source": "edhProfile.citedResponsiblePartyIndividualName",
     "path": [
       ("gmd:identificationInfo"),
@@ -216,7 +240,7 @@ FIELD_MAPPING = {
       ("gco:CharacterString"),
     ]
   },
-  "citedResponsiblePartyOrganizationName": {
+  "ci_organization_name": {
     "source": "edhProfile.citedResponsiblePartyOrganizationName",
     "source_fr": "edhProfile.citedResponsiblePartyOrganizationName",
     "path": [
@@ -229,7 +253,7 @@ FIELD_MAPPING = {
       ("gmd:organisationName", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
     ]
   },
-  "citedResponsiblePartyEmail": {
+  "ci_email": {
     "source": "edhProfile.citedResponsiblePartyEmail",
     "source_fr": "edhProfile.citedResponsiblePartyEmail",
     "path": [
@@ -246,7 +270,7 @@ FIELD_MAPPING = {
       ("gmd:electronicMailAddress", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
     ]
   },
-  "citedResponsiblePartyRole": {
+  "ci_role": {
     "source": "edhProfile.citedResponsiblePartyRole",
     "path": [
       ("gmd:identificationInfo"),
@@ -264,7 +288,9 @@ FIELD_MAPPING = {
       ),
     ]
   },
-  "descriptiveKeywords": {
+
+  # 
+  "descriptive_keywords": {
     "source": "pacificSalmonTopicCategory",
     "source_fr": "pacificSalmonTopicCategory",
     "repeat": "gmd:keyword",
@@ -276,6 +302,8 @@ FIELD_MAPPING = {
       ("gmd:keyword", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
     ]
   },
+
+  # 
   "useLimitation": {
     "source": "license",
     "source_fr": "license",
@@ -319,8 +347,9 @@ FIELD_MAPPING = {
       ),
     ]
   },
-  "useConstraints": {
-    "source": "license",
+  "security_classification": {
+    "source": "classification",
+    # "source_fr": "classificationFr",
     "path": [
       ("gmd:identificationInfo"),
       ("gmd:MD_DataIdentification"),
@@ -335,7 +364,9 @@ FIELD_MAPPING = {
       ),
     ]
   },
-  "beginDate": {
+
+  # 
+  "begin_date": {
     "source": "beginDate",
     "path": [
       ("gmd:identificationInfo"),
@@ -348,7 +379,7 @@ FIELD_MAPPING = {
       ("gml:beginPosition"),
     ]
   },
-  "endDate": {
+  "end_date": {
     "source": "endDate",
     "path": [
       ("gmd:identificationInfo"),
@@ -361,6 +392,8 @@ FIELD_MAPPING = {
       ("gml:endPosition"),
     ]
   },
+
+  # 
   "code": {
     "source": "spatialCode",
     "path": [
@@ -372,18 +405,20 @@ FIELD_MAPPING = {
       ("gco:CharacterString"),
     ]
   },
-  "codeSpace": {
-    "text": "https://epsg.io",
-    "path": [
-      ("gmd:referenceSystemInfo"),
-      ("gmd:MD_ReferenceSystem"),
-      ("gmd:referenceSystemIdentifier"),
-      ("gmd:RS_Identifier"),
-      ("gmd:codeSpace"),
-      ("gco:CharacterString"),
-    ]
-  },
-  "fileFormatName": {
+  # "code_space": {
+  #   "text": "https://epsg.io",
+  #   "path": [
+  #     ("gmd:referenceSystemInfo"),
+  #     ("gmd:MD_ReferenceSystem"),
+  #     ("gmd:referenceSystemIdentifier"),
+  #     ("gmd:RS_Identifier"),
+  #     ("gmd:codeSpace"),
+  #     ("gco:CharacterString"),
+  #   ]
+  # },
+
+  # 
+  "file_format_name": {
     "source": "edhProfile.fileFormatName",
     "repeat": "gmd:distributionFormat",
     "path": [
@@ -395,7 +430,7 @@ FIELD_MAPPING = {
       ("gco:CharacterString")
     ]
   },
-  "fileFormatVersion": {
+  "file_format_version": {
     "source": "edhProfile.fileFormatVersion",
     "path": [
       ("gmd:distributionInfo"),
@@ -406,7 +441,9 @@ FIELD_MAPPING = {
       ("gco:CharacterString")
     ]
   },
-  "distributionContactOrganizationName": {
+
+  # 
+  "distributor_organization_name": {
     "source": "edhProfile.distributionContactOrganizationName",
     "source_fr": "edhProfile.distributionContactOrganizationName",
     "path": [
@@ -419,7 +456,7 @@ FIELD_MAPPING = {
       ("gmd:organisationName", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
     ]
   },
-  "distributionContactEmail": {
+  "distributor_email": {
     "source": "edhProfile.distributionContactEmail",
     "source_fr": "edhProfile.distributionContactEmail",
     "path": [
@@ -437,7 +474,7 @@ FIELD_MAPPING = {
     ]
   },
 
-  "distributionContactRole": {
+  "distributor_role": {
     "source": "edhProfile.distributionContactRole",
     "path": [
       ("gmd:distributionInfo"),
@@ -456,7 +493,7 @@ FIELD_MAPPING = {
     ]
   },
 
-  ####
+  #### HNAP
   "metadataStandardName": {
     "text": "North American Profile of ISO 19115:2003 - Geographic information - Metadata",
     "text_fr": "Profil nord-américain de la norme ISO 19115:2003 - Information géographique - Métadonnées",
