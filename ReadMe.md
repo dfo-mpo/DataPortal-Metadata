@@ -1,8 +1,6 @@
 # Data Portal Metadata Harvester
 
-This repository contains a Python-based harvesting tool that retrieves metadata records from an API and generates HNAP–compliant XML files for downstream harvesting and ingestion.
-
-The project is designed to be executed as a scheduled job and does not require user interaction once configured.
+This repository contains a Python-based harvesting tool that retrieves metadata records from an API and generates HNAP-compliant XML files for downstream harvesting and ingestion.
 
 ---
 
@@ -25,10 +23,10 @@ python -m venv .venv
 
 ```
 # Linux / macOS
-source .venv/bin/activate
+source venv/Scripts/activate
 
 # Windows (PowerShell)
-.venv\Scripts\Activate.ps1
+venv\Scripts\Activate.ps1
 ```
 
 3. Install dependencies:
@@ -44,7 +42,7 @@ pip install -r requirements.txt
 ```
 ./
 ├─ src/
-│ ├─ api_client.py        # Handles API requests=
+│ ├─ api_client.py        # Handles API requests
 │ ├─ config.py            # Environment configuration, API selection, and paths
 │ ├─ harvester.py         # Orchestrates harvesting and XML generation
 │ ├─ mapping.py           # Field mapping configuration
@@ -80,27 +78,27 @@ The harvester supports multiple API environments, controlled via an environment 
 
 ## Running the Harvester
 
-### DEV (Default)
+### Default (UAT)
 
-If no environment variable is provided, the harvester runs against the **DEV API** by default.
+If no environment variable is provided, the harvester runs against the **UAT API** by default.
 
 ```
 python main.py
 ```
 
-**Requires active VPN connection.**
+No VPN is required.
 
 ---
 
-### UAT (Public)
+### DEV
 
-To run against the UAT API:
+To run against the DEV API:
 
 ```
-HARVEST_ENV=uat python main.py
+HARVEST_ENV=dev python main.py
 ```
 
-No VPN is required.
+**Requires active VPN connection.**
 
 ---
 
