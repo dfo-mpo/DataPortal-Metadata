@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 # Environment
-ENV = os.getenv("HARVEST_ENV", "dev").lower()
+ENV = os.getenv("HARVEST_ENV", "uat").lower()
 
 # API endpoints
 API_ENDPOINTS = {
