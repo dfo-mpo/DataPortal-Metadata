@@ -23,10 +23,10 @@ python -m venv .venv
 
 ```
 # Linux / macOS
-source venv/Scripts/activate
+source .venv/Scripts/activate
 
 # Windows (PowerShell)
-venv\Scripts\Activate.ps1
+.venv\Scripts\Activate.ps1
 ```
 
 3. Install dependencies:
