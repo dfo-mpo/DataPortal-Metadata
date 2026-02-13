@@ -8,7 +8,7 @@ This repository contains a Python-based harvesting tool that retrieves metadata 
 
 - Python 3.9+
 - Network access to the target API
-- VPN access **required for DEV environment only**
+- Private DFO Network access **required for DEV environment only**
 
 ---
 
@@ -37,78 +37,69 @@ pip install -r requirements.txt
 
 ---
 
-## Repository Structure
-
-```
-./
-├─ src/
-│ ├─ api_client.py        # Handles API requests
-│ ├─ config.py            # Environment configuration, API selection, and paths
-│ ├─ harvester.py         # Orchestrates harvesting and XML generation
-│ ├─ mapping.py           # Field mapping configuration
-│ └─ xml_builder.py       # XML construction and mapping application logic
-│
-├─ notebooks/
-│ └─ xml_harvester_dev.ipynb    # Development and debugging notebook
-│
-├─ output/                # Generated XML files
-│
-├─ main.py                # Entry point for execution
-├─ requirements.txt
-└─ README.md
-```
-
----
-
 ## API Environments
 
-The harvester supports multiple API environments, controlled via an environment variable.
+The harvester supports multiple API environments, controlled via the `HARVEST_ENV` environment variable.
 
-### Current environments
+If no environment variable is provided, the harvester runs against the **PROD API** by default.
+
+### Available Environments
 
 | Environment | Description | Network Requirement |
-|------------|-------------|---------------------|
-| `dev` | Development API | **VPN required** |
-| `uat` | User Acceptance / Testing API | Public |
-| `prod` | Production API | **Not yet available** |
-
-> **Note:** The PROD API is not yet available and will be added once provided by the upstream team.
+|-------------|------------|---------------------|
+| `prod` | Production API (Default) | Public |
+| `uat`  | User Acceptance / Testing API | Public |
+| `dev`  | Development API | Private DFO Network required |
 
 ---
 
 ## Running the Harvester
 
-### Default (UAT)
+Before running the harvester, ensure the virtual environment is activated and the desired API environment is selected.
 
-If no environment variable is provided, the harvester runs against the **UAT API** by default.
+### Activate a virtual environment
+
+```
+# Linux / macOS
+source .venv/bin/activate
+
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+```
+
+---
+
+### Default (PROD)
+
+Runs against the Production API.
 
 ```
 python main.py
 ```
 
-No VPN is required.
+---
+
+### UAT
+
+To run against the UAT API:
+
+```
+HARVEST_ENV=uat python main.py
+```
+
+No Private DFO Network is required.
 
 ---
 
 ### DEV
 
-To run against the DEV API:
+To run against the Development API:
 
 ```
 HARVEST_ENV=dev python main.py
 ```
 
-**Requires active VPN connection.**
-
----
-
-### PROD (TBA)
-
-Once the PROD API becomes available, it will be enabled via:
-
-```
-HARVEST_ENV=prod python main.py
-```
+**Requires active private DFO network connection.**
 
 ---
 
@@ -123,24 +114,6 @@ Generated XML files are written to the following directory:
 - One XML file is generated per record
 - Filenames are derived from the record identifier
 - Existing files with the same name will be overwritten
-
----
-
-## Development Notebook
-
-A development notebook is provided under:
-
-```
-./notebooks/
-```
-
-The notebook is intended for:
-- Development
-- Debugging
-- Mapping validation
-
-The notebook is **not** intended for scheduled or production execution.  
-All scheduled runs should execute `main.py`.
 
 ---
 
