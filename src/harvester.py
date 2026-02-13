@@ -11,12 +11,21 @@ def generate_xml():
   raw = fetch_json(API_URL)
   records = raw.get("data", [])
 
-  print(f"Found {len(records)} records.")
+  print(f"Found {len(records)} records. \n")
 
   for record in records:
     record_id = extract_record_id(record)
-    xml_tree = build_xml(record, record_id, FIELD_MAPPING)
-
+    xml_tree = build_xml(
+      record=record,
+      record_id=record_id,
+      mapping=FIELD_MAPPING,
+    )
     filename = f"{OUTPUT_DIR}/{record_id}.xml"
-    xml_tree.write(filename, pretty_print=True)
-    print(f"Saved {filename}")
+    xml_tree.write(
+      filename, 
+      pretty_print=True,
+      xml_declaration=True,
+      encoding="UTF-8"
+    )
+    print(f"Saved {filename} \n")
+

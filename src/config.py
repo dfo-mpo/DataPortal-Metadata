@@ -2,14 +2,13 @@ import os
 from pathlib import Path
 
 # Environment
-ENV = os.getenv("HARVEST_ENV", "uat").lower()
+ENV = os.getenv("HARVEST_ENV", "prod").lower()
 
 # API endpoints
 API_ENDPOINTS = {
   "dev": "http://qc-cdos-css-1:8815/api/portal/dataset/harvest", 
   "uat": "https://internet.dfo-mpo.gc.ca/pssi-issp/api/portal/dataset/harvest",
-  # PROD will be added later
-  # "prod": ""
+  "prod": "https://dataportal.dfo-mpo.gc.ca/api/portal/dataset/harvest"
 }
 
 if ENV not in API_ENDPOINTS:

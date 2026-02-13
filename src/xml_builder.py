@@ -1,4 +1,35 @@
+"""
+XML Builder Module
+==================
+
+This module generates ISO-compliant XML metadata records
+from structured source records using a base ISO-compliant XML template
+
+Overview
+--------
+1. Load base XML template (language + spatial variant)
+2. Iterate through mapping configuration
+3. Extract values from source record
+4. Normalize controlled values if required
+5. Inject values via XPath
+6. Clean illegal placeholders
+7. Enforce required ISO fields
+8. Return final XML tree
+
+Important
+---------
+This module assumes:
+  - The base template is ISO-valid
+  - Mapping configuration is correct
+  - Controlled vocabularies are pre-defined
+"""
+
 from lxml import etree
+from datetime import datetime
+from .normalization import normalize_controlled_value
+from .codelist_registry import resolve_codelist_value
+import os
+from copy import deepcopy
 
 # Register ISO namespaces
 namespaces = {
@@ -17,23 +48,47 @@ namespaces = {
   "xsi": "http://www.w3.org/2001/XMLSchema-instance"
 }
 
+def load_base_xml(path):
+  """
+  Load and parse the base ISO XML template.
+  """
+  if not os.path.exists(path):
+    raise FileNotFoundError(f"Base XML template not founc: {path}")
+  
+  parser = etree.XMLParser(remove_blank_text=True)
+  return etree.parse(path, parser)
+
 def resolve_tag(tag):
   """
-  Convert 'gmd:tag' to '{uri}tag' using namespace mappings
+  Convert namespace-prefixed tag to fully-qualified QName.
+
+  Example:
+    -  "gmd:fileIdentifier" -> "{http://www.isotc211.org/2005/gmd}fileIdentifier"
+
+  Used for safe XML element lookup and manipulation.
   """
   if ":" not in tag:
-      return tag
-
-  prefix, tag = tag.split(":", 1)
+    return tag
+  
+  prefix, tag = tag.split(":")
   return f"{{{namespaces[prefix]}}}{tag}"
 
-def get_value(record, source, default=""):
+def get_value(record, source, default=None):
   """
-  Extracts nested values from the dict record using the source path connected by dot
+  Extract nested value from a record using dot-separated path.
+
+  Supports:
+    - Dictionary traversal
+    - List indexing (e.g., "files.0.id")
+
   Example: 
     - "edhProfile.characterSet": str
     - "files.0.id": str. get("files") is a list, "0" is the index
     - "topicCategory": []
+
+  Returns
+  -------
+  Resolved value or default if path not found.
   """
   if not source:
     return default
@@ -56,197 +111,344 @@ def get_value(record, source, default=""):
 
   return value
 
-def ensure_child(parent, tag, attrib=None):
+def normalize_date(value):
   """
-  Find an existing child with the same tag, or create it.
-  """
-  tag = resolve_tag(tag)
-  
-  for child in parent:
-    if child.tag == tag:
-      return child
-    
-  # Special attrib xsi:type 
-  attrib = {
-    resolve_tag(k): v for k, v in (attrib or {}).items()
-  }
+  Normalize ISO datetime string to date-only format.
 
-  return etree.SubElement(parent, tag, attrib)
+  Example:
+    "2025-11-19T20:55:54+00:00" -> "2025-11-19"
 
-def normalize_path_item(item):
+  Returns original value if parsing fails.
   """
-  Normalize path item into (tag, attrib)
-  Support
-  - ("tag") -> (tag, None)
-  - ("tag",) -> (tag, None)
-  - ("tag", {attrib}) -> (tag, attrib)
+  if not value:
+    return ""
+  try:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).date().isoformat()
+  except Exception:
+    return value
+
+def normalize_code(value):
   """
-  if isinstance(item, str):
-    return item, None
-  
-  if isinstance(item, tuple):
-    if len(item) == 1:
-      return item[0], None
-    elif len(item) == 2:
-      return item[0], item[1]
+  Normalize spatial reference codes.
+
+  Examples:
+    "EPSG-4326" -> "EPSG:4326"
+    "SR-ORG-123" -> "SR-ORG:123"
+
+  Returns original value if no transformation required.
+  """
+  if not value:
+    return ""
+  try:
+    if value.startswith("EPSG"):
+      return value.replace("EPSG-", "EPSG:")
+    elif value.startswith("SR-ORG"):
+      return value.replace("SR-ORG-", "SR-ORG:")
     else:
-      raise ValueError(f"Invalid tuple length in path item {item}")
-  raise ValueError(f"Invalid path entry {item}")
+      return value
+  except Exception:
+    return value
 
-def add_bilingual_text(parent, en_value, fr_value=None):
+def set_text(lang, tree, xpath, value, secondary_value=None):
   """
-  Builds bilingual text
-  """
-  en_elem = etree.SubElement(parent, resolve_tag("gco:CharacterString"))
-  en_elem.text = str(en_value)
+  Inject scalar value into XML using XPath.
 
-  if fr_value:
-    pt = etree.SubElement(parent, resolve_tag("gmd:PT_FreeText"))
-    tg = etree.SubElement(pt, resolve_tag("gmd:textGroup"))
-    fr_elem = etree.SubElement(
-      tg,
-      resolve_tag("gmd:LocalisedCharacterString"),
-      {"locale": "#fra"}
-    )
-    fr_elem.text = str(fr_value)
+  Features:
+    - Automatic date normalization
+    - Spatial code normalization
+    - ISO codeList resolution
+    - Removal of gco:nilReason
+    - Optional bilingual PT_FreeText handling
 
-def attach_value(node, value, fr_value=None, is_bilingual=False):
+  Parameters
+  ----------
+  lang : str
+    Base language ("en" or "fr")
+  tree : etree._ElementTree
+  xpath : str
+  value : str
+  secondary_value : str (optional)
+
+  If codeList resolution fails:
+    -> Template value is preserved.
   """
-  Attach value (optional bilingual) to a leaf node.
+  if value in (None, "", []):
+    return
+  
+  # Normalize date to YYYY-MM-DD format
+  if "/gco:Date" in xpath:
+    value = normalize_date(value)
+
+  if "/gmd:code" in xpath:
+    value = normalize_code(value)
+
+  nodes = tree.xpath(xpath, namespaces=namespaces)
+  for node in nodes:
+    codeList_url = node.get("codeList")
+
+    if codeList_url:
+      resolved_code = resolve_codelist_value(codeList_url, str(value))
+
+      if not resolved_code:
+        # Skip modification completely - keep template default value
+        print(f"[WARN] Codelist value not found for {value}, keeping template fallback.")
+        # node.attrib.pop("codeList")
+        # node.attrib.pop("codeListValue")
+        # node.text = str(value)
+        continue
+
+      # Safe to update
+      node.text = str(value)
+      node.set("codeListValue", resolved_code)
+
+    else:
+      node.text = str(value)
+    
+    # Remove nilReason if present
+    parent = node.getparent()
+    parent.attrib.pop(resolve_tag("gco:nilReason"), None)
+
+    if secondary_value not in (None, "", []):
+      secondary_locale = "#fra" if lang == "en" else "#eng"
+      fr_nodes = parent.xpath(
+        f".//gmd:LocalisedCharacterString",
+        namespaces=namespaces
+      )
+      if fr_nodes:
+        fr_nodes[0].set("locale", secondary_locale)
+        fr_nodes[0].text = str(secondary_value)
+
+def set_repeated_values(lang, tree, container_xpath, repeat_tag, value_xpath, values, secondary_values=None):
   """
-  if is_bilingual:
-    add_bilingual_text(node, value, fr_value)
+  Inject repeated values into XML container.
+
+  Process:
+    - Locate container element
+    - Use first existing child as template
+    - Clone template for each value
+    - Insert values in correct order
+    - Handle optional bilingual values
+
+  Parameters
+  ----------
+  container_xpath : str
+  repeat_tag : str
+  value_xpath : str
+  values : list
+  secondary_values : list (optional)
+  """
+  if not values:
+    return
+
+  containers = tree.xpath(container_xpath, namespaces=namespaces)
+  if not containers:
+    return
+  container = containers[0]
+
+  repeat_qname = resolve_tag(repeat_tag)
+  
+  # Find existing placeholder(s)
+  existing = container.findall(repeat_qname)
+  if not existing:
+    return
+
+  # Use first placeholder as template
+  template = existing[0]
+  insert_index = list(container).index(template)
+
+  # Remove all placeholders
+  for elem in existing:
+    container.remove(elem)
+
+  # Ensure secondary_values alignment
+  if isinstance(secondary_values, list):
+    fr_list = secondary_values
+  elif secondary_values:
+    fr_list = [secondary_values] * len(values)
   else:
-    node.text = str(value)
+    fr_list = [None] * len(values)
 
-def apply_mapping(root, record, mapping):
-  # Collect all repeat tags defined in the mapping
-  all_repeat_tags = {
-    conf.get("repeat")
-    for conf in mapping.values()
-    if isinstance(conf.get("repeat"), str)
-  }
-  
-  for _, conf in mapping.items():
-    repeat_tag = conf.get("repeat")
-    is_repeat = isinstance(repeat_tag, str)
+  for i, value in enumerate(values):
+    # Clone template
+    new_elem = deepcopy(template)
 
-    # Resolve value
-    if "text" in conf:
-      value = conf.get("text")
-    else:
-      value = get_value(record, conf.get("source"))
-    
-    if value in (None, "", []):
-      value = ""
+    # Insert at correct position
+    container.insert(insert_index + i, new_elem)
 
-    # Normalize path
-    path = [normalize_path_item(item) for item in conf["path"]]
+    # Set EN value
+    value_node = new_elem.find(".//" + resolve_tag(value_xpath), namespaces)
+    if value_node is not None:
+      # Remove nilReason if present
+      value_node.getparent().attrib.pop(resolve_tag("gco:nilReason"), None)
+      value_node.text = str(value)
 
-    # Resolve bilingual values once
-    fr_values = None
-    is_bilingual = "source_fr" in conf or "text_fr" in conf
-    if is_bilingual:
-      if "text_fr" in conf:
-        fr_values = conf.get("text_fr")
+    # Set FR value if present
+    if fr_list and i < len(fr_list) and fr_list[i]:
+      fr_node = new_elem.xpath(
+        ".//gmd:LocalisedCharacterString",
+        namespaces=namespaces
+      )
+      if fr_node:
+        # Update locale
+        secondary_locale = "#fra" if lang == "en" else "#eng"
+        fr_node[0].set("locale", secondary_locale)
+        fr_node[0].text = str(fr_list[i])
+
+def clean_illegal_placeholders(tree):
+  """
+  Remove invalid or empty ISO blocks.
+
+  Currently removes:
+    - Empty CI_Date blocks
+    - Empty topicCategory elements
+
+  Ensures final XML passes ISO validation.
+  """
+  # Remove empty CI_Date blocks
+  for date in tree.xpath(".//gco:Date", namespaces=namespaces):
+    if not (date.text and date.text.strip()):
+      ci_date = date.getparent().getparent()
+      ci_date.getparent().remove(ci_date)
+
+  # Remove empty topicCategory
+  for tc in tree.xpath(".//gmd:topicCategory", namespaces=namespaces):
+    code = tc.find(".//gmd:MD_TopicCategoryCode", namespaces)
+    if code is None or not (code.text and code.text.strip()):
+      tc.getparent().remove(tc)
+
+def enforce_required_fields(tree, record_id):
+  """
+  Enforce mandatory ISO fields.
+
+  Always sets:
+    - fileIdentifier
+    - dateStamp (current UTC timestamp)
+
+  Ensures ISO compliance even if mapping omits them.
+  """
+  # fileIdentifier
+  fid = tree.xpath(
+    ".//gmd:fileIdentifier/gco:CharacterString",
+    namespaces=namespaces
+  )
+  if fid:
+    fid[0].text = str(record_id)
+
+  # dateStamp
+  ds = tree.xpath(
+    ".//gmd:dateStamp/gco:DateTime",
+    namespaces=namespaces
+  )
+  if ds:
+    ds[0].text = datetime.now().isoformat() + "Z"
+
+def build_xml(record, record_id, mapping, base_xml_path=None):
+  """
+  Main XML generation entry point.
+
+  Parameters
+  ----------
+  record : dict
+  record_id : str
+  mapping : list
+  base_xml_path : str (optional)
+
+  Process
+  -------
+  1. Determine language and spatial type
+  2. Load appropriate base template
+  3. Iterate through mapping configuration
+  4. Inject scalar or repeated values
+  5. Clean invalid placeholders
+  6. Enforce required ISO fields
+
+  Returns
+  -------
+  etree._ElementTree
+    Fully constructed ISO-compliant XML tree.
+  """
+  # Determine spatial
+  is_spatial = bool(get_value(record, "spatialType"))
+
+  # Determine base language
+  if base_xml_path is None:
+    lang = get_value(record, "edhProfile.language", default="en")
+    lang = str(lang).strip().lower()
+    lang = "fr" if lang.startswith("fr") else "en"
+    base_xml_suffix = "_spatial" if is_spatial else ""
+    base_xml_path = f"src/xml/base_{lang}{base_xml_suffix}.xml"
+  else:
+    lang = "fr" if "fr" in base_xml_path.lower() else "en"
+
+  print(f"[INFO] Record {str(record_id)}")
+  print(f"[INFO] {"Spatial" if is_spatial else "Non-spatial"} {lang.upper()} record. Load template from {base_xml_path}")
+
+  tree = load_base_xml(base_xml_path)
+
+  for field in mapping:
+    is_repeat = field.get("repeat")
+
+    if lang == "fr":
+      if field.get("source_fr"):
+        primary_source = field.get("source_fr")
+        secondary_source = field.get("source")
       else:
-        fr_values = get_value(record, conf.get("source_fr"))
-
-    # CASE 1: Defines repetition
-    # ==========================
-
-    # Split path into container -> repeat subtree
-    if is_repeat:
-      # Normalize values
-      values = value if isinstance(value, list) else [str(value)]
-      
-      try:
-        repeat_idx = next(
-          i for i, (tag, _) in enumerate(path) if tag == repeat_tag
-        )
-      except StopIteration:
-        raise ValueError(
-          f"Repeat tag '{repeat_tag}' not found in path: {path}"
-        )
-      container_path = path[:repeat_idx]
-      repeat_path = path[repeat_idx:]
-
-      # Build container once
-      parent = root
-      for tag, attrib in container_path:
-        parent = ensure_child(parent, tag, attrib)
-
-      # Repeat repeated subtree
-      for idx, value in enumerate(values):
-        current = parent
-
-        for tag, attrib in repeat_path:
-          current = etree.SubElement(
-            current,
-            resolve_tag(tag),
-            {resolve_tag(k): v for k, v in (attrib or {}).items()}
-          )
-
-        fr_value = None
-        if is_bilingual:
-          if isinstance(fr_values, list) and idx < len(fr_values):
-            fr_value = fr_values[idx]
-          elif not isinstance(fr_values, list):
-            fr_value = fr_values
-
-        attach_value(current, value, fr_value, is_bilingual)
-
-    # CASE 2: Decorates an existing repeating structure
-    # =================================================
+        primary_source = field.get("source")
+        secondary_source = None
     else:
-      repeat_positions = [
-        i for i, (tag, _) in enumerate(path) if tag in all_repeat_tags
-      ]
+      primary_source = field.get("source")
+      secondary_source = field.get("source_fr")
 
-      if repeat_positions:
-        repeat_idx = repeat_positions[0]
-        container_path = path[:repeat_idx]
-        post_repeat_path = path[repeat_idx + 1:]
-        repeat_tag_name, _ = path[repeat_idx]
+    # Scalar type
+    if not is_repeat:
+      value = get_value(record, primary_source)
+      value = normalize_controlled_value(
+        field.get("controlled"), value
+      )
 
-        # Walk to parent to repeated elements
-        parent = root
-        for tag, attrib in container_path:
-          parent = ensure_child(parent, tag, attrib)
+      secondary_value = None
+      if secondary_source:
+        secondary_value = get_value(record, secondary_source)
+        secondary_value = normalize_controlled_value(
+          field.get("controlled"), secondary_value
+        )
 
-        repeated_nodes = parent.findall(resolve_tag(repeat_tag_name))
+      set_text(
+        lang,
+        tree,
+        field["xpath"],
+        value,
+        secondary_value
+      )
 
-        for idx, repeated_node in enumerate(repeated_nodes):
-          current = repeated_node
-          for tag, attrib in post_repeat_path:
-            current = ensure_child(current, tag, attrib)
-
-          fr_value = None
-          if is_bilingual:
-            if isinstance(fr_values, list) and idx < len(fr_values):
-              fr_value = fr_values[idx]
-            elif not isinstance(fr_values, list):
-              fr_value = fr_values
-
-          attach_value(current, value, fr_value, is_bilingual)
+    # Repeat type
+    else:
+      if "container_xpath" not in field:
+        raise ValueError("Repeat requires container_xpath")
       
-      # CASE 3: Normal non-repeat field
-      # ===============================
-      else:
-        parent = root
-        for tag, attrib in path[:-1]:
-          parent = ensure_child(parent, tag, attrib)
+      raw_value = get_value(record, primary_source)
+      values = normalize_controlled_value(
+        field.get("controlled"), raw_value
+      )
 
-        leaf_tag, leaf_attrib = path[-1]
-        leaf = ensure_child(parent, leaf_tag, leaf_attrib)
+      secondary_values = None
+      if secondary_source:
+        raw_secondary_values = get_value(record, secondary_source)
+        secondary_values = normalize_controlled_value(
+          field.get("controlled"), raw_secondary_values
+        )
 
-        fr_value = None
-        if is_bilingual:
-          fr_value = fr_values
+      set_repeated_values(
+        lang,
+        tree,
+        field["container_xpath"],
+        field["repeat_tag"],
+        field["value_xpath"],
+        values,
+        secondary_values
+      )
 
-        attach_value(leaf, value, fr_value, is_bilingual)
+  clean_illegal_placeholders(tree)
+  enforce_required_fields(tree, record_id)
 
-def build_xml(record, record_id, field_mapping):
-  root = etree.Element(resolve_tag("gmd:MD_Metadata"), nsmap=namespaces)
-  apply_mapping(root, record, field_mapping)
-  return etree.ElementTree(root)
+  return tree

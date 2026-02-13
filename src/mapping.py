@@ -1,553 +1,289 @@
-from datetime import datetime
-
 """
-Mapping field configuration
+Mapping Configuration Module
+============================
+
+This module defines the field-to-XML mapping configuration used by the XML builder.
+
+Each mapping entry describes how a source record field is transformed
+and inserted into a specific ISO19139 XML structure.
+
+Core Configuration Keys
+-----------------------
+
+xpath:
+  Full dot-separated XML path to the target element.
+  - Must reflect the exact ISO structure hierarchy.
+  - If multiple elements share the same path, selection may rely
+    on tag attributes defined in the builder.
 
 source:
-  Dot-separated path in the source record (e.g. "files.0.id").
-  When `repeat` is used, the resolved source value must be a list.
+  Dot-separated path in the input record.
+  Example:
+    "files.0.id"
+    "edhProfile.characterSet"
+  - When `repeat` is used, the resolved value must be a list.
 
 source_fr:
-  Optional French source value.
-  When provided, a bilingual (EN/FR) block is generated using PT_FreeText.
-  * Do not add "gco:CharacterString" in the path for bilingual fields.
+  Optional French source field.
+  - When provided, a bilingual PT_FreeText block is populated with locale attribute.
 
-text:
-  Direct value to use instead of reading from the source record.
-  If present, `source` is ignored.
+controlled:
+  Indicates that the value must be normalized using CONTROLLED_VOCAB.
+  - The raw source value is mapped to a controlled vocabulary value.
+  - Used for ISO codeList-compliant fields.
 
-text_fr:
-  Optional French value when using `text`.
-  Generates a bilingual (EN/FR) block using PT_FreeText.
-  * Do not add "gco:CharacterString" in the path for bilingual fields.
+Repeat Configuration
+--------------------
 
 repeat:
-  Optional tag name (e.g. "gmd:topicCategory") indicating 
-  which child element in the path should be repeated.
-  When set, one XML subtree is created per item in the source list.
+  Used when a field generates multiple XML elements.
 
-path:
-  XML element path from the document root to the leaf element.
-  Each entry may be:
-    - "gmd:tag"                   no attributes
-    - ("gmd:tag", {attrib})       with attributes
+Required keys:
+  container_xpath:
+    The parent element where repeated nodes will be inserted.
+
+  repeat_tag:
+    The XML tag name of each repeated element.
+
+  value_xpath:
+    The relative path within each repeated block where the value is inserted.
+
+The builder enforces that:
+  - The resolved source must be iterable.
+  - Each item generates one XML block.
+
+Builder-Enforced Required Fields
+--------------------------------
+
+The following elements are automatically enforced in the builder
+even if not explicitly defined in mapping:
+
+  - fileIdentifier
+  - dateStamp
+
+These fields are mandatory for ISO validation.
+
+Template-Injected Static Fields
+-------------------------------
+
+The following elements are pre-defined in the base XML template
+and are not dynamically mapped:
+
+  - hierarchyLevel
+  - organisationName
+  - citedResponsiblePartyOrganizationName
+  - useLimitation
+  - accessConstraints
+  - useConstraints
+  - distributionContactOrganizationName
+
+These values are either static or template-driven.
+
+Notes
+-----
+
+This mapping file contains configuration only.
+No XML manipulation logic should be implemented here.
+
+All XML generation logic is handled in xml_builder.py.
 """
 
-FIELD_MAPPING = {
-  "id": {
-    "source": "files.0.id",
-    "path": [
-      ("gmd:fileIdentifier"),
-      ("gco:CharacterString")
-    ]
-  },
-  "date_stamp": {
-    "text": datetime.now().isoformat(),
-    "path": [
-      ("gmd:dateStamp"),
-      ("gco:DateTime")
-    ]
-  },
-  "language": {
+FIELD_MAPPING = [
+  # language
+  {
+    "xpath": ".//gmd:language/gco:CharacterString",
     "source": "edhProfile.language",
-    "path": [
-      ("gmd:language"),
-      ("gco:CharacterString")
-    ]
+    "controlled": "language"
   },
-  "character_set": {
+  # characterSet
+  {
+    "xpath": ".//gmd:characterSet/gco:MD_CharacterSetCode",
     "source": "edhProfile.characterSet",
-    "path": [
-      ("gmd:characterSet"),
-      ("gmd:MD_CharacterSetCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_95",
-         "codeListValue": "RI_458"
-        }
-      )
-    ]
+    "controlled": "characterSet"
   },
-  "hierarchy_level": {
-    "source": "edhProfile.hierarchyLevel",
-    "path": [
-      ("gmd:hierarchyLevel"),
-      ("gmd:MD_ScopeCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_108",
-         "codeListValue": "RI_623"
-        }
-      )
-    ]
-  },
-
-  # 
-  "individual_name": {
-    "source": "individualName",
-    "path": [
-      ("gmd:contact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:individualName"),
-    ]
-  },
-  "organization_name": {
-    "source": "organizationName",
-    "source_fr": "organizationName",
-    "path": [
-      ("gmd:contact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:organisationName", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
-    ]
-  },
-  "email_address": {
-    "source": "emailAddress",
-    "source_fr": "emailAddress",
-    "path": [
-      ("gmd:contact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:contactInfo"),
-      ("gmd:CI_Contact"),
-      ("gmd:address"),
-      ("gmd:electronicMailAddress", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
-    ]
-  },
-  "role": {
-    "source": "edhProfile.contactRole",
-    "path": [
-      ("gmd:contact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:role"),
-      ("gmd:CI_RoleCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_90",
-         "codeListValue": "RI_414"
-        }
-      ),
-    ]
-  },
-
-  # 
-  "title": {
-    "source": "title",
-    "source_fr": "titleFr",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:title", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
-    ]
-  },
-  "datePublication": {
-    "text": datetime.now().date(),
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:date"),
-      ("gmd:CI_Date"),
-      ("gmd:date"),
-      ("gco:Date")
-    ]
-  },
-  "datePublicationTypeCode": {
-    "source": "edhProfile.dataPublication",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:date"),
-      ("gmd:CI_Date"),
-      ("gmd:dateType"),
-      ("gmd:CI_DateTypeCode",
-        { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_87",
-         "codeListValue": "RI_367"
-        }
-      )
-    ]
-  },
-  "abstract": {
-    "source": "abstractEN",
-    "source_fr": "abstractFR",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:abstract", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
-    ]
-  },
-  "status": {
-    "source": "edhProfile.datasetStatus",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:status"),
-      ("gmd:MD_ProgressCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_106",
-         "codeListValue": "RI_596"
-        }
-      ),
-    ]
-  },
-  "data_identification_language": {
-    "source": "edhProfile.language",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:language"),
-      ("gco:CharacterString")
-    ]
-  },
-  "topic_category": {
-    "source": "edhProfile.topicCategory",
-    "repeat": "gmd:topicCategory",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:topicCategory"),
-      ("gmd:MD_TopicCategoryCode")
-    ]
-  },
-  "update_frequency": {
-    "source": "updateFrequency",
-    "source_fr": "updateFrequencyFr",
-    "path": [
-      ("gmd:resourceMaintenance"),
-      ("gmd:MD_MaintenanceInformation"),
-      ("gmd:maintenanceAndUpdateFrequency"),
-      ("gmd:MD_MaintenanceFrequencyCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_102",
-         "codeListValue": "RI_539"
-        }
-      ),
-    ]
-  },
-
-  # 
-  "ci_individual_name": {
-    "source": "edhProfile.citedResponsiblePartyIndividualName",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:citedResponsibleParty"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:individualName"),
-      ("gco:CharacterString"),
-    ]
-  },
-  "ci_organization_name": {
-    "source": "edhProfile.citedResponsiblePartyOrganizationName",
-    "source_fr": "edhProfile.citedResponsiblePartyOrganizationName",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:citedResponsibleParty"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:organisationName", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
-    ]
-  },
-  "ci_email": {
-    "source": "edhProfile.citedResponsiblePartyEmail",
-    "source_fr": "edhProfile.citedResponsiblePartyEmail",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:citedResponsibleParty"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:contactInfo"),
-      ("gmd:CI_Contact"),
-      ("gmd:address"),
-      ("gmd:CI_Address"),
-      ("gmd:electronicMailAddress", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
-    ]
-  },
-  "ci_role": {
-    "source": "edhProfile.citedResponsiblePartyRole",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:citation"),
-      ("gmd:CI_Citation"),
-      ("gmd:citedResponsibleParty"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:role"),
-      ("gmd:CI_RoleCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_90",
-         "codeListValue": "RI_415"
-        }
-      ),
-    ]
-  },
-
-  # 
-  "descriptive_keywords": {
-    "source": "pacificSalmonTopicCategory",
-    "source_fr": "pacificSalmonTopicCategory",
-    "repeat": "gmd:keyword",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:descriptiveKeywords"),
-      ("gmd:MD_Keywords"),
-      ("gmd:keyword", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
-    ]
-  },
-
-  # 
-  "useLimitation": {
-    "source": "license",
-    "source_fr": "license",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:resourceConstraints"),
-      ("gmd:MD_LegalConstraints"),
-      ("gmd:useLimitation", {"xsi:type": "gmd:PT_FreeText_PropertyType"}),
-    ]
-  },
-  "accessConstraints": {
-    "source": "license",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:resourceConstraints"),
-      ("gmd:MD_LegalConstraints"),
-      ("gmd:accessConstraints"),
-      ("gmd:MD_RestrictionCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_107",
-         "codeListValue": "RI_606"
-        }
-      ),
-    ]
-  },
-  "useConstraints": {
-    "source": "license",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:resourceConstraints"),
-      ("gmd:MD_LegalConstraints"),
-      ("gmd:useConstraints"),
-      ("gmd:MD_RestrictionCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_107",
-         "codeListValue": "RI_606"
-        }
-      ),
-    ]
-  },
-  "security_classification": {
-    "source": "classification",
-    # "source_fr": "classificationFr",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:resourceConstraints"),
-      ("gmd:MD_SecurityConstraints"),
-      ("gmd:classification"),
-      ("gmd:MD_ClassificationCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_96",
-         "codeListValue": "RI_484"
-        }
-      ),
-    ]
-  },
-
-  # 
-  "begin_date": {
-    "source": "beginDate",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:extent"),
-      ("gmd:EX_Extent"),
-      ("gmd:EX_TemporalExtent"),
-      ("gmd:extent"),
-      ("gml:TimePeriod", {"gml:id": ""}),
-      ("gml:beginPosition"),
-    ]
-  },
-  "end_date": {
-    "source": "endDate",
-    "path": [
-      ("gmd:identificationInfo"),
-      ("gmd:MD_DataIdentification"),
-      ("gmd:extent"),
-      ("gmd:EX_Extent"),
-      ("gmd:EX_TemporalExtent"),
-      ("gmd:extent"),
-      ("gml:TimePeriod", {"gml:id": ""}),
-      ("gml:endPosition"),
-    ]
-  },
-
-  # 
-  "code": {
-    "source": "spatialCode",
-    "path": [
-      ("gmd:referenceSystemInfo"),
-      ("gmd:MD_ReferenceSystem"),
-      ("gmd:referenceSystemIdentifier"),
-      ("gmd:RS_Identifier"),
-      ("gmd:code"),
-      ("gco:CharacterString"),
-    ]
-  },
-  # "code_space": {
-  #   "text": "https://epsg.io",
-  #   "path": [
-  #     ("gmd:referenceSystemInfo"),
-  #     ("gmd:MD_ReferenceSystem"),
-  #     ("gmd:referenceSystemIdentifier"),
-  #     ("gmd:RS_Identifier"),
-  #     ("gmd:codeSpace"),
-  #     ("gco:CharacterString"),
-  #   ]
+  # hierarchyLevel
+  # {
+  #   "xpath": ".//gmd:hierarchyLevel/gmd:MD_ScopeCode",
+  #   "source": "edhProfile.hierarchyLevel"
   # },
 
-  # 
-  "file_format_name": {
-    "source": "edhProfile.fileFormatName",
-    "repeat": "gmd:distributionFormat",
-    "path": [
-      ("gmd:distributionInfo"),
-      ("gmd:MD_Distribution"),
-      ("gmd:distributionFormat"),
-      ("gmd:MD_Format"),
-      ("gmd:name"),
-      ("gco:CharacterString")
-    ]
+
+  # organizationName
+  # {
+  #   "xpath": ".//gmd:contact/gmd:CI_ResponsibleParty/gmd:organisationName/gco:CharacterString",
+  #   "source": "organizationName"
+  # },
+  # emailAddress
+  {
+    "xpath": ".//gmd:contact/gmd:CI_ResponsibleParty/gmd:contactInfo/gmd:CI_Contact/gmd:address/gmd:CI_Address/gmd:electronicMailAddress/gco:CharacterString",
+    "source": "emailAddress",
+    "source_fr": "emailAddress"
   },
-  "file_format_version": {
-    "source": "edhProfile.fileFormatVersion",
-    "path": [
-      ("gmd:distributionInfo"),
-      ("gmd:MD_Distribution"),
-      ("gmd:distributionFormat"),
-      ("gmd:MD_Format"),
-      ("gmd:version"),
-      ("gco:CharacterString")
-    ]
+  # role
+  {
+    "xpath": ".//gmd:contact/gmd:CI_ResponsibleParty/gmd:role/gmd:CI_RoleCode",
+    "source": "edhProfile.contactRole",
+    "controlled": "role"
   },
 
-  # 
-  "distributor_organization_name": {
-    "source": "edhProfile.distributionContactOrganizationName",
-    "source_fr": "edhProfile.distributionContactOrganizationName",
-    "path": [
-      ("gmd:distributionInfo"),
-      ("gmd:MD_Distribution"),
-      ("gmd:distributor"),
-      ("gmd:MD_Distributor"),
-      ("gmd:distributorContact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:organisationName", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
-    ]
+
+  # title
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:title/gco:CharacterString",
+    "source": "title",
+    "source_fr": "titleFr"
   },
-  "distributor_email": {
+  # date publication
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date[gmd:dateType/gmd:CI_DateTypeCode[@codeListValue='RI_367']]/gmd:date/gco:Date",
+    "source": "lastModified"
+  },
+  # date createdAt
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date[gmd:dateType/gmd:CI_DateTypeCode[@codeListValue='RI_366']]/gmd:date/gco:Date",
+    "source": "createdAt"
+  },
+  # abstract
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:abstract/gco:CharacterString",
+    "source": "abstractEN",
+    "source_fr": "abstractFR"
+  },
+  # status
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:status/gmd:MD_ProgressCode",
+    "source": "edhProfile.datasetStatus",
+    "controlled": "status"
+  },
+  # data_identification_language
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:language/gco:CharacterString",
+    "source": "edhProfile.language",
+    "controlled": "language"
+  },
+  # topicCategory
+  {
+    "repeat": True,
+    "container_xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification",
+    "repeat_tag": "gmd:topicCategory",
+    "value_xpath": "gmd:MD_TopicCategoryCode",
+    "source": "edhProfile.topicCategory",
+    "controlled": "topicCategory"
+  },
+  # updateFrequency
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode",
+    "source": "updateFrequency",
+    "source_fr": "updateFrequencyFr",
+    "controlled": "updateFrequency"
+  },
+
+
+  # edhProfile.citedResponsiblePartyOrganizationName 
+
+  # citedResponsiblePartyEmail
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty/gmd:contactInfo/gmd:CI_Contact/gmd:address/gmd:CI_Address/gmd:electronicMailAddress/gco:CharacterString",
+    "source": "edhProfile.citedResponsiblePartyEmail",
+    "source_fr": "edhProfile.citedResponsiblePartyEmail"
+  },
+  # citedResponsiblePartyRole
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty/gmd:role/gmd:CI_RoleCode",
+    "source": "edhProfile.citedResponsiblePartyRole",
+    "controlled": "role"
+  },
+
+
+  # keyword
+  {
+    "repeat": True,
+    "container_xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:descriptiveKeywords/gmd:MD_Keywords",
+    "repeat_tag": "gmd:keyword",
+    "value_xpath": "gco:CharacterString",
+    "source": "pacificSalmonTopicCategory",
+    "source_fr": "pacificSalmonTopicCategoryFr",
+    "controlled": "keyword"
+  },
+
+
+  # useLimitation
+  # {
+  #   "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:useLimitation/gco:CharacterString",
+  #   "source": "license",
+  #   "source_fr": "license"
+  # },
+  # accessConstraints
+  # {
+  #   "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints/gmd:MD_RestrictionCode",
+  #   "source": "license"
+  # },
+  # useConstraints
+  # {
+  #   "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:useConstraints/gmd:MD_RestrictionCode",
+  #   "source": "license"
+  # },
+  # classification
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_SecurityConstraints/gmd:classification/gmd:MD_ClassificationCode",
+    "source": "classification",
+    "source_fr": "classificationFr",
+    "controlled": "classification"
+  },
+
+
+  # begin_date
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:beginPosition",
+    "source": "beginDate"
+  },
+  # end_date
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:endPosition",
+    "source": "endDate"
+  },
+
+
+  # spatialCode
+  {
+    "xpath": ".//gmd:referenceSystemInfo/gmd:MD_ReferenceSystem/gmd:referenceSystemIdentifier/gmd:RS_Identifier/gmd:code/gco:CharacterString",
+    "source": "spatialCode"
+  },
+  # spatialType
+  {
+    "xpath": ".//gmd:identificationInfo/gmd:MD_DataIdentification/gmd:spatialRepresentationType/gmd:MD_SpatialRepresentationTypeCode",
+    "source": "spatialType",
+    "controlled": "spatialType"
+  },
+
+
+  # fileFormatName
+  # value is a list, get only the first file format since version is a string
+  {
+    "xpath": ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:distributionFormat/gmd:MD_Format/gmd:name/gco:CharacterString",
+    "source": "edhProfile.fileFormatName.0"
+  },
+  # fileFormatVersion
+  {
+    "xpath": ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:distributionFormat/gmd:MD_Format/gmd:version/gco:CharacterString",
+    "source": "edhProfile.fileFormatVersion"
+  },
+  # distributionContactOrganizationName
+  # {
+  #   "xpath": ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorContact/gmd:CI_ResponsibleParty/gmd:organisationName/gco:CharacterString",
+  #   "source": "edhProfile.distributionContactOrganizationName",
+  #   "source_fr": "edhProfile.distributionContactOrganizationName"
+  # },
+  # distributionContactEmail
+  {
+    "xpath": ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorContact/gmd:CI_ResponsibleParty/gmd:contactInfo/gmd:CI_Contact/gmd:address/gmd:CI_Address/gmd:electronicMailAddress/gco:CharacterString",
     "source": "edhProfile.distributionContactEmail",
-    "source_fr": "edhProfile.distributionContactEmail",
-    "path": [
-      ("gmd:distributionInfo"),
-      ("gmd:MD_Distribution"),
-      ("gmd:distributor"),
-      ("gmd:MD_Distributor"),
-      ("gmd:distributorContact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:contactInfo"),
-      ("gmd:CI_Contact"),
-      ("gmd:address"),
-      ("gmd:CI_Address"),
-      ("gmd:electronicMailAddress", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
-    ]
+    "source_fr": "edhProfile.distributionContactEmail"
   },
-
-  "distributor_role": {
+  # distributionContactRole
+  {
+    "xpath": ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorContact/gmd:CI_ResponsibleParty/gmd:role/gmd:CI_RoleCode",
     "source": "edhProfile.distributionContactRole",
-    "path": [
-      ("gmd:distributionInfo"),
-      ("gmd:MD_Distribution"),
-      ("gmd:distributor"),
-      ("gmd:MD_Distributor"),
-      ("gmd:distributorContact"),
-      ("gmd:CI_ResponsibleParty"),
-      ("gmd:role"),
-      ("gmd:CI_RoleCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_90",
-         "codeListValue": "RI_412"
-        }
-      ),
-    ]
+    "controlled": "role"
   },
-
-  #### HNAP
-  "metadataStandardName": {
-    "text": "North American Profile of ISO 19115:2003 - Geographic information - Metadata",
-    "text_fr": "Profil nord-américain de la norme ISO 19115:2003 - Information géographique - Métadonnées",
-    "path": [
-      ("gmd:metadataStandardName", {"xsi:type": "gmd:PT_FreeText_PropertyType"})
-    ]
-  },
-  "metadataStandardVersion": {
-    "text": "CAN/CGSB-171.100-2009",
-    "path": [
-      ("gmd:metadataStandardVersion"),
-      ("gco:CharacterString")
-    ]
-  },
-  "localeLanguageCode": {
-    "text": "French; Français",
-    "path": [
-      ("gmd:locale"),
-      ("gmd:PT_Locale", {"id": "fra"}),
-      ("gmd:languageCode"),
-      ("gmd:languageCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_116",
-         "codeListValue": "fra"
-        }
-      ),
-    ]
-  },
-  "localeCountry": {
-    "text": "Canada; Canada",
-    "path": [
-      ("gmd:locale"),
-      ("gmd:PT_Locale", {"id": "fra"}),
-      ("gmd:country"),
-      ("gmd:country", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_117",
-         "codeListValue": "CAN"
-        }
-      ),
-    ]
-  },
-  "localeCharacterEncoding": {
-    "text": "utf8; utf8",
-    "path": [
-      ("gmd:locale"),
-      ("gmd:PT_Locale", {"id": "fra"}),
-      ("gmd:characterEncoding"),
-      ("gmd:MD_CharacterSetCode", 
-       { 
-         "codeList": "https://schemas.metadata.geo.ca/register/napMetadataRegister.xml#IC_95",
-         "codeListValue": "RI_458"
-        }
-      ),
-    ]
-  }
-}
+]
