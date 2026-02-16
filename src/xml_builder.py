@@ -380,8 +380,9 @@ def build_xml(record, record_id, mapping, base_xml_path=None):
   else:
     lang = "fr" if "fr" in base_xml_path.lower() else "en"
 
+  record_type = "Spatial" if is_spatial else "Non-spatial"
   print(f"[INFO] Record {str(record_id)}")
-  print(f"[INFO] {"Spatial" if is_spatial else "Non-spatial"} {lang.upper()} record. Load template from {base_xml_path}")
+  print(f"[INFO] {record_type} {lang.upper()} record. Load template from {base_xml_path}")
 
   tree = load_base_xml(base_xml_path)
 
