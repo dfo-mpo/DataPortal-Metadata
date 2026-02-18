@@ -48,6 +48,7 @@ If no environment variable is provided, the harvester runs against the **PROD AP
 | Environment | Description | Network Requirement |
 |-------------|------------|---------------------|
 | `prod` | Production API (Default) | Public |
+| `prod_fr` | Production API (French) | Public |
 | `uat`  | User Acceptance / Testing API | Public |
 | `dev`  | Development API | Private DFO Network required |
 
@@ -75,6 +76,16 @@ Runs against the Production API.
 
 ```
 python main.py
+```
+
+---
+
+### PROD (French)
+
+To run against the PROD (French) API:
+
+```
+HARVEST_ENV=prod_fr python main.py
 ```
 
 ---
