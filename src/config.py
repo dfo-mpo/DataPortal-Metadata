@@ -8,7 +8,8 @@ ENV = os.getenv("HARVEST_ENV", "prod").lower()
 API_ENDPOINTS = {
   "dev": "http://qc-cdos-css-1:8815/api/portal/dataset/harvest", 
   "uat": "https://internet.dfo-mpo.gc.ca/pssi-issp/api/portal/dataset/harvest",
-  "prod": "https://dataportal.dfo-mpo.gc.ca/api/portal/dataset/harvest"
+  "prod": "https://dataportal.dfo-mpo.gc.ca/api/portal/dataset/harvest",
+  "prod_fr": "https://portaildedonnees.dfo-mpo.gc.ca/api/portal/dataset/harvest"
 }
 
 if ENV not in API_ENDPOINTS:
